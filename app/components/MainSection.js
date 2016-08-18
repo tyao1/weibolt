@@ -6,14 +6,28 @@ import style from './MainSection.css';
 import { connect } from 'react-redux';
 import followInBatch from '../utils/followInBatch';
 import runAfterLoad from '../utils/runAfterLoad';
+import { wait, needCode } from '../utils/botUtils';
+import { toggle } from '../reducers/settings';
 
-/*
-const TODO_FILTERS = {
-  [SHOW_ALL]: () => true,
-  [SHOW_ACTIVE]: todo => !todo.completed,
-  [SHOW_COMPLETED]: todo => todo.completed
-};
-*/
+function shuffle(array) {
+    var counter = array.length, temp, index;
+
+    // While there are elements in the array
+    while (counter > 0) {
+        // Pick a random index
+        index = Math.floor(Math.random() * counter);
+
+        // Decrease counter by 1
+        counter--;
+
+        // And swap the last element with it
+        temp = array[counter];
+        array[counter] = array[index];
+        array[index] = temp;
+    }
+
+    return array;
+}
 
 const config = [
   {
@@ -21,10 +35,22 @@ const config = [
   },
   {
     name: '搜索页',
-    operation: () => {
+    operation: async function opSearch() {
+      // likes
+      const likes = Array.prototype.slice.call(document.querySelectorAll('a[action-type="feed_list_like"][title="赞"]'));
+      shuffle(likes);
+      for (let like of likes) {
+        like.scrollIntoView(true);
+        await wait(Math.random() * 600);
+        like.click();
+        console.log('[weibolt] like');
+        await wait(200 + 2000 * Math.random());
+      }
+
+      // follow
       const links = document.querySelectorAll('a[usercard]');
       const userCollection = {};
-      const users = Array.prototype.forEach.call(links, (link => {
+      Array.prototype.forEach.call(links, (link => {
         const user = {};
         const userString = link.getAttribute('usercard');
         if (!userString) return;
@@ -76,6 +102,12 @@ function maxLength(str) {
   return str.slice(0, 13) + '...';
 }
 
+@connect(
+  state => ({
+    working: state.settings.working,
+  }),
+  { toggle },
+)
 export default class MainSection extends Component {
 
   static propTypes = {
@@ -93,29 +125,53 @@ export default class MainSection extends Component {
     } else {
       type = 0;
     }
-    this.state = {
-      type
-    };
+    this.type = type;
   }
 
   componentDidMount() {
     // wait for weibo loaded
-    const { operation, after } = config[this.state.type];
+    if (this.props.working) {
+      this.heavyLefting();
+    }
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if (!this.props.working && nextProps.working) {
+      this.heavyLefting();
+    }
+  }
+  onToggleClick = () => {
+    this.props.toggle(!this.props.working);
+  }
+  heavyLefting() {
+    const { operation, after } = config[this.type];
     if (!operation) return;
-    runAfterLoad(() => {
-      const collection = operation();
+    runAfterLoad(async function runAfterFn() {
+      if (needCode()) {
+        alert('需要填写验证码');
+        return;
+      }
+      const collection = await operation(); // retrieve users
       followInBatch(collection);
       if (after) after();
     });
   }
 
   render() {
-    const { type } = this.state;
+    const { type } = this;
+    const { working } = this.props;
     const current = config[type];
     return (
       <section className={style.main}>
         <h4>当前页面：{maxLength(document.location.pathname.slice(0, 14))}</h4>
         <p>可执行操作: {current.name}</p>
+        <button style={{
+          marginTop: '14px',
+          border: '1px solid #4a4a4a',
+          padding: '12px 24px',
+          borderRadius: '10px',
+          cursor: 'pointer',
+        }} onClick={this.onToggleClick}>{working ? '停止' : '开始'}</button>
       </section>
     );
   }

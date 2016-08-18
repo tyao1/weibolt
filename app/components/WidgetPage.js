@@ -61,6 +61,8 @@ export default class WidgetPage extends Component {
           clearInterval(handler);
           this.props.addFollowers(users);
           window.location = 'weibo.com/sorry';
+        } else {
+          focusButton.click();
         }
       }, 100);
     });
